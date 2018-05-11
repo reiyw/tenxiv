@@ -98,14 +98,14 @@ impl Attachment {
                 AttachmentField {
                     title: "Abstract".to_string(),
                     value: abst,
-                    short: true,
+                    short: false,
                 }
             ),
             _ => (),
         }
 
         let (color, footer, footer_icon) = match &article.preserver[..] {
-            "arxiv" => ("#B22121".to_string(), article.preserver, Some("http://i.imgur.com/8NYocT8.gif".to_string())),
+            "arXiv" => ("#B22121".to_string(), article.preserver, Some("http://i.imgur.com/8NYocT8.gif".to_string())),
             _ => ("#DDDDDD".to_string(), article.preserver, None),
         };
 
