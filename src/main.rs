@@ -22,6 +22,7 @@ use scraper::{Html, Selector};
 use std::collections::HashMap;
 use std::env;
 use std::thread;
+use url::Url;
 
 
 #[derive(Deserialize)]
@@ -114,6 +115,7 @@ impl Attachment {
 
         let (color, footer, footer_icon) = match &article.preserver[..] {
             "arXiv" => ("#B22121".to_string(), article.preserver, Some("http://i.imgur.com/8NYocT8.gif".to_string())),
+            "OpenReview" => ("#DCDCDC".to_string(), article.preserver, None),
             _ => ("#DDDDDD".to_string(), article.preserver, None),
         };
 
@@ -196,17 +198,67 @@ impl Article {
         println!("{:?}", &article);
         Some(article)
     }
+
+    fn from_openreview(url: &str) -> Option<Article> {
+        let parsed_url = Url::parse(url).unwrap();
+        let hash_query: HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
+        let id = hash_query.get("id").unwrap();
+
+        let abs_link = format!("https://openreview.net/forum?id={}", id);
+        let pdf_link = format!("https://openreview.net/pdf?id={}", id);
+
+        let body = reqwest::get(&abs_link).unwrap().text().unwrap();
+        let document = Html::parse_document(&body);
+
+        let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let authors: Vec<_> = document.select(&Selector::parse(r#"meta[name="citation_author"]"#).unwrap()).map(|author| author.value().attr("content").unwrap().to_string()).collect();
+
+        let abst: String = document.select(&Selector::parse(".note-content-value").unwrap()).next().unwrap().text().collect();
+
+        let citation_date_str = document.select(&Selector::parse(r#"meta[name="citation_online_date"]"#).unwrap()).next().unwrap().value().attr("content").unwrap();
+        let date = match citation_date_str.split("/").map(|s| s.to_string()).collect::<Vec<String>>().as_slice() {
+            [y, m, d] => Utc.ymd(y.parse().unwrap(), m.parse().unwrap(), d.parse().unwrap()).and_hms(0, 0, 0),
+            _ => Utc::now(),
+        };
+
+        let article = Article {
+            preserver: "OpenReview".to_string(),
+            id: id.to_string(),
+            title,
+            url: abs_link,
+            authors,
+            abst: Some(abst.trim().to_string()),
+            pdf_link: Some(pdf_link),
+            html_en_link: None,
+            html_ja_link: None,
+            bib_link: None,
+            date,
+        };
+        println!("{:?}", &article);
+        Some(article)
+    }
 }
 
 #[test]
 fn test_arxiv() {
     let article = Article::from_arxiv("https://arxiv.org/abs/1803.06643v1").unwrap();
-    assert_eq!(article.id, "1803.06643v1".to_string());
+    assert_eq!(article.id, "1803.06643".to_string());
     assert_eq!(article.title, "The Web as a Knowledge-base for Answering Complex Questions".to_string());
     assert_eq!(article.url, "https://arxiv.org/abs/1803.06643v1".to_string());
     assert_eq!(article.authors, vec!["Alon Talmor".to_string(), "Jonathan Berant".to_string()]);
     assert_eq!(article.abst, Some("Answering complex questions is a time-consuming activity for humans that requires reasoning and integration of information. Recent work on reading comprehension made headway in answering simple questions, but tackling complex questions is still an ongoing research challenge. Conversely, semantic parsers have been successful at handling compositionality, but only when the information resides in a target knowledge-base. In this paper, we present a novel framework for answering broad and complex questions, assuming answering simple questions is possible using a search engine and a reading comprehension model. We propose to decompose complex questions into a sequence of simple questions, and compute the final answer from the sequence of answers. To illustrate the viability of our approach, we create a new dataset of complex questions, ComplexWebQuestions, and present a model that decomposes questions and interacts with the web to compute an answer. We empirically demonstrate that question decomposition improves performance from 20.8 precision@1 to 27.5 precision@1 on this new dataset.".to_string()));
     assert_eq!(article.pdf_link, Some("https://arxiv.org/pdf/1803.06643v1".to_string()));
+}
+
+#[test]
+fn test_openreview() {
+    let article = Article::from_openreview("https://openreview.net/forum?id=Hy7fDog0b").unwrap();
+    assert_eq!(article.id, "Hy7fDog0b".to_string());
+    assert_eq!(article.title, "AmbientGAN: Generative models from lossy measurements".to_string());
+    assert_eq!(article.url, "https://openreview.net/forum?id=Hy7fDog0b".to_string());
+    assert_eq!(article.authors, vec!["Ashish Bora".to_string(), "Eric Price".to_string(), "Alexandros G. Dimakis".to_string()]);
+    assert_eq!(article.abst, Some("Generative models provide a way to model structure in complex distributions and have been shown to be useful for many tasks of practical interest. However, current techniques for training generative models require access to fully-observed samples. In many settings, it is expensive or even impossible to obtain fully-observed samples, but economical to obtain partial, noisy observations. We consider the task of learning an implicit generative model given only lossy measurements of samples from the distribution of interest. We show that the true underlying distribution can be provably recovered even in the presence of per-sample information loss for a class of measurement models. Based on this, we propose a new method of training Generative Adversarial Networks (GANs) which we call AmbientGAN. On three benchmark datasets, and for various measurement models, we demonstrate substantial qualitative and quantitative improvements. Generative models trained with our method can obtain $2$-$4$x higher inception scores than the baselines.".to_string()));
+    assert_eq!(article.pdf_link, Some("https://openreview.net/pdf?id=Hy7fDog0b".to_string()));
 }
 
 #[post("/", format = "application/json", data = "<message>")]
@@ -222,6 +274,7 @@ fn index(message: Json<Message>) -> String {
         for link in &event.links {
             let article = match &link.domain[..] {
                 "arxiv.org" => Article::from_arxiv(&link.url),
+                "openreview.net" => Article::from_openreview(&link.url),
                 _ => None,
             };
             let attachment = match article {
@@ -239,11 +292,6 @@ fn index(message: Json<Message>) -> String {
 }
 
 fn send_unfurl_request(channel: &str, ts: &str, url: &str, attachment: Attachment) {
-    // こんな感じで送りたい:
-    // POST /api/chat.unfurl
-    // Content-type: application/json
-    // Authorization: Bearer xoxa-xxxxxxxxx-xxxx
-    // {"name":"something-urgent"}
     let unfurls: HashMap<String, Attachment> = vec![
         (url.to_string(), attachment),
     ].into_iter().collect();
