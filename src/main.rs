@@ -117,6 +117,7 @@ impl Attachment {
         let (color, footer, footer_icon) = match &article.preserver[..] {
             "arXiv" => ("#B22121".to_string(), article.preserver, Some("http://i.imgur.com/8NYocT8.gif".to_string())),
             "OpenReview" => ("#8B211A".to_string(), article.preserver, None),
+            "ACL Anthology" => ("#FD0003".to_string(), article.preserver, Some("http://aclweb.org/anthology/images/acl-logo.gif".to_string())),
             _ => ("#DDDDDD".to_string(), article.preserver, None),
         };
 
@@ -243,6 +244,44 @@ impl Article {
         println!("{:?}", &article);
         Some(article)
     }
+
+    fn from_aclweb(url: &str) -> Option<Article> {
+        // /hoge/fuga.pdf -> fuga
+        let id = url.rsplitn(2, '/').collect::<Vec<&str>>()[0].split('.').collect::<Vec<&str>>()[0];
+        let id_upper = id.to_uppercase();
+        let id_lower = id.to_lowercase();
+
+        let abs_link = format!("https://aclanthology.info/papers/{}/{}", &id_upper, &id_lower);
+        let pdf_en_link = format!("http://aclweb.org/anthology/{}", &id_upper);
+        let pdf_ja_link = format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &pdf_en_link);
+        let bib_link = format!("{}.bib", &abs_link);
+
+        let body = reqwest::get(&abs_link).unwrap().text().unwrap();
+        let document = Html::parse_document(&body);
+
+        let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let authors: Vec<_> = document.select(&Selector::parse(r#"meta[name="citation_author"]"#).unwrap()).map(|author| author.value().attr("content").unwrap().to_string()).collect();
+
+        let year = document.select(&Selector::parse(r#"meta[name="citation_publication_date"]"#).unwrap()).next().unwrap().value().attr("content").unwrap();
+        let date = Utc.ymd(year.parse().unwrap(), 1, 1).and_hms(0, 0, 0);
+
+        let article = Article {
+            preserver: "ACL Anthology".to_string(),
+            id: id_upper,
+            title,
+            url: abs_link,
+            authors,
+            abst: None,
+            pdf_en_link: Some(pdf_en_link),
+            pdf_ja_link: Some(pdf_ja_link),
+            html_en_link: None,
+            html_ja_link: None,
+            bib_link: Some(bib_link),
+            date,
+        };
+        println!("{:?}", &article);
+        Some(article)
+    }
 }
 
 #[test]
@@ -281,6 +320,7 @@ fn index(message: Json<Message>) -> String {
             let article = match &link.domain[..] {
                 "arxiv.org" => Article::from_arxiv(&link.url),
                 "openreview.net" => Article::from_openreview(&link.url),
+                "aclweb.org" | "aclanthology.coli.uni-saarland.de" | "aclanthology.info" => Article::from_aclweb(&link.url),
                 _ => None,
             };
             let attachment = match article {
