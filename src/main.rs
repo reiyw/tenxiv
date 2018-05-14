@@ -97,7 +97,7 @@ impl Attachment {
         match article.abst {
             Some(abst) => {
                 let words: Vec<String> = abst.split(" ").map(|s| s.to_string()).collect();
-                let abst = if words.len() > 400000 {
+                let abst = if words.len() > 40 {
                     words[..39].join(" ") + " ..."
                 } else {
                     abst
@@ -115,7 +115,7 @@ impl Attachment {
 
         let (color, footer, footer_icon) = match &article.preserver[..] {
             "arXiv" => ("#B22121".to_string(), article.preserver, Some("http://i.imgur.com/8NYocT8.gif".to_string())),
-            "OpenReview" => ("#DCDCDC".to_string(), article.preserver, None),
+            "OpenReview" => ("#8B211A".to_string(), article.preserver, None),
             _ => ("#DDDDDD".to_string(), article.preserver, None),
         };
 
