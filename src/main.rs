@@ -1,6 +1,7 @@
 #![feature(plugin)]
 #![plugin(rocket_codegen)]
 
+extern crate base64;
 //extern crate regex;
 extern crate chrono;
 extern crate hyper;
@@ -22,7 +23,6 @@ use scraper::{Html, Selector};
 use std::collections::HashMap;
 use std::env;
 use std::thread;
-//use url::form_urlencoded::byte_serialize;
 use url::Url;
 
 
@@ -241,8 +241,7 @@ impl Article {
         };
 
         let bib_str = document.select(&Selector::parse(".action-bibtex-modal").unwrap()).next().unwrap().value().attr("data-bibtex").unwrap().to_string();
-        // let bib_link = format!("data:text/plain,{}", byte_serialize(&bib_str.as_bytes()).collect::<String>());
-        let bib_link = format!("data:text/plain,{}", &bib_str);
+        let bib_link = format!("data:text/plain;base64,{}", base64::encode(&bib_str.as_bytes()));
 
         let article = Article {
             preserver: "OpenReview".to_string(),
