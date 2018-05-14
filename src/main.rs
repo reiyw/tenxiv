@@ -94,13 +94,21 @@ impl Attachment {
 
         let mut fields: Vec<AttachmentField> = Vec::new();
         match article.abst {
-            Some(abst) => fields.push(
-                AttachmentField {
-                    title: "Abstract".to_string(),
-                    value: abst,
-                    short: false,
-                }
-            ),
+            Some(abst) => {
+                let words: Vec<String> = abst.split(" ").map(|s| s.to_string()).collect();
+                let abst = if words.len() > 400000 {
+                    words[..39].join(" ") + " ..."
+                } else {
+                    abst
+                };
+                fields.push(
+                    AttachmentField {
+                        title: "Abstract".to_string(),
+                        value: abst,
+                        short: false,
+                    }
+                )
+            }
             _ => (),
         }
 
