@@ -1097,6 +1097,7 @@ dependencies = [
 name = "tenxiv"
 version = "0.1.0"
 dependencies = [
+ "base64 0.9.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "chrono 0.4.2 (registry+https://github.com/rust-lang/crates.io-index)",
  "hyper 0.11.26 (registry+https://github.com/rust-lang/crates.io-index)",
  "reqwest 0.8.5 (registry+https://github.com/rust-lang/crates.io-index)",
