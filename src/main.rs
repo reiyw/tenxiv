@@ -22,6 +22,7 @@ use scraper::{Html, Selector};
 use std::collections::HashMap;
 use std::env;
 use std::thread;
+//use url::form_urlencoded::byte_serialize;
 use url::Url;
 
 
@@ -239,6 +240,10 @@ impl Article {
             _ => Utc::now(),
         };
 
+        let bib_str = document.select(&Selector::parse(".action-bibtex-modal").unwrap()).next().unwrap().value().attr("data-bibtex").unwrap().to_string();
+        // let bib_link = format!("data:text/plain,{}", byte_serialize(&bib_str.as_bytes()).collect::<String>());
+        let bib_link = format!("data:text/plain,{}", &bib_str);
+
         let article = Article {
             preserver: "OpenReview".to_string(),
             id: id.to_string(),
@@ -251,7 +256,7 @@ impl Article {
             pdf_ja_link: Some(pdf_ja_link),
             html_en_link: None,
             html_ja_link: None,
-            bib_link: None,
+            bib_link: Some(bib_link),
             date,
         };
         println!("{:?}", &article);
