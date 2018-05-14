@@ -1,7 +1,6 @@
 #![feature(plugin)]
 #![plugin(rocket_codegen)]
 
-extern crate base64;
 //extern crate regex;
 extern crate chrono;
 extern crate hyper;
@@ -240,9 +239,6 @@ impl Article {
             _ => Utc::now(),
         };
 
-        let bib_str = document.select(&Selector::parse(".action-bibtex-modal").unwrap()).next().unwrap().value().attr("data-bibtex").unwrap().to_string();
-        let bib_link = format!("data:text/plain;base64,{}", base64::encode(&bib_str.as_bytes()));
-
         let article = Article {
             preserver: "OpenReview".to_string(),
             id: id.to_string(),
@@ -255,7 +251,7 @@ impl Article {
             pdf_ja_link: Some(pdf_ja_link),
             html_en_link: None,
             html_ja_link: None,
-            bib_link: Some(bib_link),
+            bib_link: None,
             date,
         };
         println!("{:?}", &article);
