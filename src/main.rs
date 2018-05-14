@@ -113,6 +113,16 @@ impl Attachment {
             }
             _ => (),
         }
+        match article.volume {
+            Some(volume) => fields.push(
+                AttachmentField {
+                    title: "Volume".to_string(),
+                    value: volume,
+                    short: false,
+                }
+            ),
+            None => (),
+        }
 
         let (color, footer, footer_icon) = match &article.preserver[..] {
             "arXiv" => ("#B22121".to_string(), article.preserver, Some("http://i.imgur.com/8NYocT8.gif".to_string())),
@@ -149,6 +159,7 @@ struct Article {
     pub preserver: String,
     pub id: String,
     pub title: String,
+    pub volume: Option<String>,
     pub url: String,
     pub authors: Vec<String>,
     pub abst: Option<String>,
@@ -190,6 +201,7 @@ impl Article {
             preserver: "arXiv".to_string(),
             id,
             title,
+            volume: None,
             url: abs_link,
             authors,
             abst: Some(abst.trim().to_string()),
@@ -231,6 +243,7 @@ impl Article {
             preserver: "OpenReview".to_string(),
             id: id.to_string(),
             title,
+            volume: None,
             url: abs_link,
             authors,
             abst: Some(abst.trim().to_string()),
@@ -260,6 +273,7 @@ impl Article {
         let document = Html::parse_document(&body);
 
         let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let volume = document.select(&Selector::parse(r#"meta[name="citation_journal_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
         let authors: Vec<_> = document.select(&Selector::parse(r#"meta[name="citation_author"]"#).unwrap()).map(|author| author.value().attr("content").unwrap().to_string()).collect();
 
         let year = document.select(&Selector::parse(r#"meta[name="citation_publication_date"]"#).unwrap()).next().unwrap().value().attr("content").unwrap();
@@ -269,6 +283,7 @@ impl Article {
             preserver: "ACL Anthology".to_string(),
             id: id_upper,
             title,
+            volume: Some(volume),
             url: abs_link,
             authors,
             abst: None,
