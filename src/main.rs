@@ -78,7 +78,8 @@ struct Attachment {
 impl Attachment {
     fn new(article: Article) -> Attachment {
         let text = [
-            ("pdf", article.pdf_link),
+            ("pdf", article.pdf_en_link),
+            ("pdf (ja)", article.pdf_ja_link),
             ("html", article.html_en_link),
             ("html (ja)", article.html_ja_link),
             ("bib", article.bib_link),
@@ -150,7 +151,8 @@ struct Article {
     pub url: String,
     pub authors: Vec<String>,
     pub abst: Option<String>,
-    pub pdf_link: Option<String>,
+    pub pdf_en_link: Option<String>,
+    pub pdf_ja_link: Option<String>,
     pub html_en_link: Option<String>,
     pub html_ja_link: Option<String>,
     pub bib_link: Option<String>,
@@ -160,7 +162,8 @@ struct Article {
 impl Article {
     fn from_arxiv(url: &str) -> Option<Article> {
         let abs_link = url.replacen("/pdf/", "/abs/", 1);
-        let pdf_link = abs_link.replacen("/abs/", "/pdf/", 1);
+        let pdf_en_link = abs_link.replacen("/abs/", "/pdf/", 1);
+        let pdf_ja_link = format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &pdf_en_link);
 
         let body = reqwest::get(&abs_link).unwrap().text().unwrap();
         let document = Html::parse_document(&body);
@@ -189,7 +192,8 @@ impl Article {
             url: abs_link,
             authors,
             abst: Some(abst.trim().to_string()),
-            pdf_link: Some(pdf_link),
+            pdf_en_link: Some(pdf_en_link),
+            pdf_ja_link: Some(pdf_ja_link),
             html_en_link: Some(html_en_link),
             html_ja_link: Some(html_ja_link),
             bib_link: None,
@@ -205,7 +209,8 @@ impl Article {
         let id = hash_query.get("id").unwrap();
 
         let abs_link = format!("https://openreview.net/forum?id={}", id);
-        let pdf_link = format!("https://openreview.net/pdf?id={}", id);
+        let pdf_en_link = format!("https://openreview.net/pdf?id={}", id);
+        let pdf_ja_link = format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &pdf_en_link);
 
         let body = reqwest::get(&abs_link).unwrap().text().unwrap();
         let document = Html::parse_document(&body);
@@ -228,7 +233,8 @@ impl Article {
             url: abs_link,
             authors,
             abst: Some(abst.trim().to_string()),
-            pdf_link: Some(pdf_link),
+            pdf_en_link: Some(pdf_en_link),
+            pdf_ja_link: Some(pdf_ja_link),
             html_en_link: None,
             html_ja_link: None,
             bib_link: None,
@@ -247,7 +253,7 @@ fn test_arxiv() {
     assert_eq!(article.url, "https://arxiv.org/abs/1803.06643v1".to_string());
     assert_eq!(article.authors, vec!["Alon Talmor".to_string(), "Jonathan Berant".to_string()]);
     assert_eq!(article.abst, Some("Answering complex questions is a time-consuming activity for humans that requires reasoning and integration of information. Recent work on reading comprehension made headway in answering simple questions, but tackling complex questions is still an ongoing research challenge. Conversely, semantic parsers have been successful at handling compositionality, but only when the information resides in a target knowledge-base. In this paper, we present a novel framework for answering broad and complex questions, assuming answering simple questions is possible using a search engine and a reading comprehension model. We propose to decompose complex questions into a sequence of simple questions, and compute the final answer from the sequence of answers. To illustrate the viability of our approach, we create a new dataset of complex questions, ComplexWebQuestions, and present a model that decomposes questions and interacts with the web to compute an answer. We empirically demonstrate that question decomposition improves performance from 20.8 precision@1 to 27.5 precision@1 on this new dataset.".to_string()));
-    assert_eq!(article.pdf_link, Some("https://arxiv.org/pdf/1803.06643v1".to_string()));
+    assert_eq!(article.pdf_en_link, Some("https://arxiv.org/pdf/1803.06643v1".to_string()));
 }
 
 #[test]
@@ -258,7 +264,7 @@ fn test_openreview() {
     assert_eq!(article.url, "https://openreview.net/forum?id=Hy7fDog0b".to_string());
     assert_eq!(article.authors, vec!["Ashish Bora".to_string(), "Eric Price".to_string(), "Alexandros G. Dimakis".to_string()]);
     assert_eq!(article.abst, Some("Generative models provide a way to model structure in complex distributions and have been shown to be useful for many tasks of practical interest. However, current techniques for training generative models require access to fully-observed samples. In many settings, it is expensive or even impossible to obtain fully-observed samples, but economical to obtain partial, noisy observations. We consider the task of learning an implicit generative model given only lossy measurements of samples from the distribution of interest. We show that the true underlying distribution can be provably recovered even in the presence of per-sample information loss for a class of measurement models. Based on this, we propose a new method of training Generative Adversarial Networks (GANs) which we call AmbientGAN. On three benchmark datasets, and for various measurement models, we demonstrate substantial qualitative and quantitative improvements. Generative models trained with our method can obtain $2$-$4$x higher inception scores than the baselines.".to_string()));
-    assert_eq!(article.pdf_link, Some("https://openreview.net/pdf?id=Hy7fDog0b".to_string()));
+    assert_eq!(article.pdf_en_link, Some("https://openreview.net/pdf?id=Hy7fDog0b".to_string()));
 }
 
 #[post("/", format = "application/json", data = "<message>")]
