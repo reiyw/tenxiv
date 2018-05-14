@@ -1,28 +1,27 @@
 #![feature(plugin)]
 #![plugin(rocket_codegen)]
 
-extern crate rocket;
-extern crate rocket_contrib;
-#[macro_use]
-extern crate serde_derive;
-
-extern crate serde;
-extern crate serde_json;
-extern crate url;
-extern crate reqwest;
-extern crate hyper;
-extern crate scraper;
 //extern crate regex;
 extern crate chrono;
+extern crate hyper;
+extern crate reqwest;
+extern crate rocket;
+extern crate rocket_contrib;
+extern crate scraper;
+extern crate serde;
+#[macro_use]
+extern crate serde_derive;
+extern crate serde_json;
+extern crate url;
 
 use chrono::prelude::*;
 use hyper::header::{Authorization, Bearer};
 //use regex::Regex;
 use rocket_contrib::Json;
 use scraper::{Html, Selector};
-use std::thread;
 use std::collections::HashMap;
 use std::env;
+use std::thread;
 
 
 #[derive(Deserialize)]
@@ -79,7 +78,8 @@ impl Attachment {
     fn new(article: Article) -> Attachment {
         let text = [
             ("pdf", article.pdf_link),
-            ("html", article.html_link),
+            ("html", article.html_en_link),
+            ("html (ja)", article.html_ja_link),
             ("bib", article.bib_link),
         ].iter().flat_map(|(key, link)| {
             match link {
@@ -141,7 +141,8 @@ struct Article {
     pub authors: Vec<String>,
     pub abst: Option<String>,
     pub pdf_link: Option<String>,
-    pub html_link: Option<String>,
+    pub html_en_link: Option<String>,
+    pub html_ja_link: Option<String>,
     pub bib_link: Option<String>,
     pub date: DateTime<Utc>,
 }
@@ -157,7 +158,8 @@ impl Article {
         let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
         let id = document.select(&Selector::parse(r#"meta[name="citation_arxiv_id"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
 
-        let html_link = format!("https://www.arxiv-vanity.com/papers/{}/", id);
+        let html_en_link = format!("https://www.arxiv-vanity.com/papers/{}/", id);
+        let html_ja_link = format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &html_en_link);
 
         let authors_s = document.select(&Selector::parse(".authors").unwrap()).next().unwrap().text().collect::<String>().replace("\n", " ").replacen("Authors: ", "", 1);
         let authors: Vec<String> = authors_s.split(", ").map(|author| author.trim().to_string()).collect();
@@ -178,7 +180,8 @@ impl Article {
             authors,
             abst: Some(abst.trim().to_string()),
             pdf_link: Some(pdf_link),
-            html_link: Some(html_link),
+            html_en_link: Some(html_en_link),
+            html_ja_link: Some(html_ja_link),
             bib_link: None,
             date,
         };
