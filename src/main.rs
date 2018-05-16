@@ -128,6 +128,7 @@ impl Attachment {
             "arXiv" => ("#B22121".to_string(), article.preserver, Some("http://i.imgur.com/8NYocT8.gif".to_string())),
             "OpenReview" => ("#8B211A".to_string(), article.preserver, None),
             "ACL Anthology" => ("#FD0003".to_string(), article.preserver, Some("http://aclweb.org/anthology/images/acl-logo.gif".to_string())),
+            "NIPS Proceedings" => ("#F1652D".to_string(), article.preserver, Some("https://www.google.com/s2/favicons?domain=papers.nips.cc".to_string())),
             _ => ("#DDDDDD".to_string(), article.preserver, None),
         };
 
@@ -297,6 +298,101 @@ impl Article {
         println!("{:?}", &article);
         Some(article)
     }
+
+    fn from_acm(url: &str) -> Option<Article> {
+        // TODO: implement
+        let parsed_url = Url::parse(url).unwrap();
+        let hash_query: HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
+        let id = hash_query.get("id").unwrap();
+
+        let abs_link = format!("https://dl.acm.org/citation.cfm?id={}", id);
+        // let pdf_en_link = format!("https://openreview.net/pdf?id={}", id);
+        // let pdf_ja_link = format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &pdf_en_link);
+
+        let body = reqwest::get(&abs_link).unwrap().text().unwrap();
+        let document = Html::parse_document(&body);
+
+        let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let authors_s = document.select(&Selector::parse(r#"meta[name="citation_authors"]"#).unwrap()).next().unwrap().text().collect::<String>().replace("\n", " ").replacen("Authors: ", "", 1);
+        let authors: Vec<String> = authors_s.split("; ").map(|author| author.trim().to_string()).collect();
+
+        println!("{}", body);
+        let abst: String = document.select(&Selector::parse(".tabbody").unwrap()).next().unwrap().text().collect();
+
+        let citation_date_str = document.select(&Selector::parse(r#"meta[name="citation_date"]"#).unwrap()).next().unwrap().value().attr("content").unwrap();
+        let date = match citation_date_str.split("/").map(|s| s.to_string()).collect::<Vec<String>>().as_slice() {
+            [m, d, y] => Utc.ymd(y.parse().unwrap(), m.parse().unwrap(), d.parse().unwrap()).and_hms(0, 0, 0),
+            _ => Utc::now(),
+        };
+
+        let article = Article {
+            preserver: "ACM".to_string(),
+            id: id.to_string(),
+            title,
+            volume: None,
+            url: abs_link,
+            authors,
+            abst: Some(abst.trim().to_string()),
+            pdf_en_link: None,
+            pdf_ja_link: None,
+            html_en_link: None,
+            html_ja_link: None,
+            bib_link: None,
+            date,
+        };
+        println!("{:?}", &article);
+        Some(article)
+    }
+
+    fn from_nips(url: &str) -> Option<Article> {
+        // /hoge/XXXX-fuga.pdf -> XXXX
+        let paths: Vec<&str> = url.rsplitn(3, '/').collect();
+        let mut id_title = if paths[0] == "bibtex" {
+            paths[1]
+        } else {
+            paths[0]
+        }.to_string();
+        if id_title.ends_with(".pdf") {
+            let new_len = id_title.len() - 4;
+            id_title.truncate(new_len);
+        }
+        let id = id_title.splitn(2, '-').collect::<Vec<&str>>()[0].to_string();
+
+        let abs_link = format!("http://papers.nips.cc/paper/{}", &id_title);
+        let pdf_en_link = format!("{}.pdf", &abs_link);
+        let pdf_ja_link = format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &pdf_en_link);
+        let bib_link = format!("{}/bibtex", &abs_link);
+
+        let body = reqwest::get(&abs_link).unwrap().text().unwrap();
+        let document = Html::parse_document(&body);
+
+        let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let volume = document.select(&Selector::parse(r#"meta[name="citation_conference_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let authors: Vec<_> = document.select(&Selector::parse(r#"meta[name="citation_author"]"#).unwrap()).map(|author| author.value().attr("content").unwrap().to_string()).collect();
+
+        let abst: String = document.select(&Selector::parse(".abstract").unwrap()).next().unwrap().text().collect();
+
+        let year = document.select(&Selector::parse(r#"meta[name="citation_publication_date"]"#).unwrap()).next().unwrap().value().attr("content").unwrap();
+        let date = Utc.ymd(year.parse().unwrap(), 1, 1).and_hms(0, 0, 0);
+
+        let article = Article {
+            preserver: "NIPS Proceedings".to_string(),
+            id,
+            title,
+            volume: Some(volume),
+            url: abs_link,
+            authors,
+            abst: Some(abst),
+            pdf_en_link: Some(pdf_en_link),
+            pdf_ja_link: Some(pdf_ja_link),
+            html_en_link: None,
+            html_ja_link: None,
+            bib_link: Some(bib_link),
+            date,
+        };
+        println!("{:?}", &article);
+        Some(article)
+    }
 }
 
 #[test]
@@ -321,6 +417,43 @@ fn test_openreview() {
     assert_eq!(article.pdf_en_link, Some("https://openreview.net/pdf?id=Hy7fDog0b".to_string()));
 }
 
+// #[test]
+// fn test_acm() {
+// let article = Article::from_acm("https://dl.acm.org/citation.cfm?id=1073465").unwrap();
+// assert_eq!(article.id, "1073465".to_string());
+// assert_eq!(article.title, "Automatic evaluation of summaries using N-gram co-occurrence statistics".to_string());
+// assert_eq!(article.authors, vec!["Lin, Chin-Yew".to_string(), "Hovy, Eduard".to_string()]);
+// assert_eq!(article.abst, Some("Following the recent adoption by the machine translation community of automatic evaluation using the BLEU/NIST scoring process, we conduct an in-depth study of a similar idea for evaluating summaries. The results show that automatic evaluation using unigram co-occurrences between summary pairs correlates surprising well with human evaluations, based on various statistical metrics; while direct application of the BLEU evaluation procedure does not always give good results.".to_string()));
+// assert_eq!(article.pdf_en_link, Some("https://dl.acm.org/ft_gateway.cfm?id=1073465&ftid=959472&dwn=1&CFID=34742311&CFTOKEN=9402041771befa11-AE677DF5-0846-7D2B-8DE38EC1E0868C0D".to_string()));
+// }
+
+#[test]
+fn test_nips() {
+    let article = Article::from_nips("http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information").unwrap();
+    assert_eq!(article.id, "3730".to_string());
+    assert_eq!(article.title, "Streaming Pointwise Mutual Information".to_string());
+    assert_eq!(article.url, "http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information".to_string());
+    assert_eq!(article.authors, vec!["Benjamin V. Durme".to_string(), "Ashwin Lall".to_string()]);
+    assert_eq!(article.abst, Some("Recent work has led to the ability to perform space efﬁcient, approximate counting  over large vocabularies in a streaming context. Motivated by the existence of data  structures of this type, we explore the computation of associativity scores, other-  wise known as pointwise mutual information (PMI), in a streaming context. We  give theoretical bounds showing the impracticality of perfect online PMI compu-  tation, and detail an algorithm with high expected accuracy. Experiments on news  articles show our approach gives high accuracy on real world data.".to_string()));
+    assert_eq!(article.pdf_en_link, Some("http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information.pdf".to_string()));
+
+    let article = Article::from_nips("http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information.pdf").unwrap();
+    assert_eq!(article.id, "3730".to_string());
+    assert_eq!(article.title, "Streaming Pointwise Mutual Information".to_string());
+    assert_eq!(article.url, "http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information".to_string());
+    assert_eq!(article.authors, vec!["Benjamin V. Durme".to_string(), "Ashwin Lall".to_string()]);
+    assert_eq!(article.abst, Some("Recent work has led to the ability to perform space efﬁcient, approximate counting  over large vocabularies in a streaming context. Motivated by the existence of data  structures of this type, we explore the computation of associativity scores, other-  wise known as pointwise mutual information (PMI), in a streaming context. We  give theoretical bounds showing the impracticality of perfect online PMI compu-  tation, and detail an algorithm with high expected accuracy. Experiments on news  articles show our approach gives high accuracy on real world data.".to_string()));
+    assert_eq!(article.pdf_en_link, Some("http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information.pdf".to_string()));
+
+    let article = Article::from_nips("http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information/bibtex").unwrap();
+    assert_eq!(article.id, "3730".to_string());
+    assert_eq!(article.title, "Streaming Pointwise Mutual Information".to_string());
+    assert_eq!(article.url, "http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information".to_string());
+    assert_eq!(article.authors, vec!["Benjamin V. Durme".to_string(), "Ashwin Lall".to_string()]);
+    assert_eq!(article.abst, Some("Recent work has led to the ability to perform space efﬁcient, approximate counting  over large vocabularies in a streaming context. Motivated by the existence of data  structures of this type, we explore the computation of associativity scores, other-  wise known as pointwise mutual information (PMI), in a streaming context. We  give theoretical bounds showing the impracticality of perfect online PMI compu-  tation, and detail an algorithm with high expected accuracy. Experiments on news  articles show our approach gives high accuracy on real world data.".to_string()));
+    assert_eq!(article.pdf_en_link, Some("http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information.pdf".to_string()));
+}
+
 #[post("/", format = "application/json", data = "<message>")]
 fn index(message: Json<Message>) -> String {
     match message.0.challenge {
@@ -336,6 +469,10 @@ fn index(message: Json<Message>) -> String {
                 "arxiv.org" => Article::from_arxiv(&link.url),
                 "openreview.net" => Article::from_openreview(&link.url),
                 "aclweb.org" | "aclanthology.coli.uni-saarland.de" | "aclanthology.info" => Article::from_aclweb(&link.url),
+                "dl.acm.org" | "delivery.acm.org" => Article::from_acm(&link.url),
+                "paper.nips.cc" => Article::from_nips(&link.url),
+                //"proceedings.mlr.press" => Article::from_pmlr(&link.url),
+                //"ieeexplore.ieee.org" => Article::from_ieee(&link.url),
                 _ => None,
             };
             let attachment = match article {
