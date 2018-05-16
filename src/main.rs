@@ -479,7 +479,7 @@ fn index(message: Json<Message>) -> String {
                 "openreview.net" => Article::from_openreview(&link.url),
                 "aclweb.org" | "aclanthology.coli.uni-saarland.de" | "aclanthology.info" => Article::from_aclweb(&link.url),
                 "dl.acm.org" | "delivery.acm.org" => Article::from_acm(&link.url),
-                "paper.nips.cc" => Article::from_nips(&link.url),
+                "papers.nips.cc" => Article::from_nips(&link.url),
                 //"proceedings.mlr.press" => Article::from_pmlr(&link.url),
                 //"ieeexplore.ieee.org" => Article::from_ieee(&link.url),
                 _ => None,
