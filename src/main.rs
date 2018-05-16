@@ -78,6 +78,7 @@ struct Attachment {
 impl Attachment {
     fn new(article: Article) -> Attachment {
         let text = [
+            ("abstract (ja)", article.url_ja),
             ("pdf", article.pdf_en_link),
             ("pdf (ja)", article.pdf_ja_link),
             ("html", article.html_en_link),
@@ -162,6 +163,7 @@ struct Article {
     pub title: String,
     pub volume: Option<String>,
     pub url: String,
+    pub url_ja: Option<String>,
     pub authors: Vec<String>,
     pub abst: Option<String>,
     pub pdf_en_link: Option<String>,
@@ -203,6 +205,7 @@ impl Article {
             id,
             title,
             volume: None,
+            url_ja: Some(convert_google_translation_url(&abs_link[..])),
             url: abs_link,
             authors,
             abst: Some(abst.trim().to_string()),
@@ -245,6 +248,7 @@ impl Article {
             id: id.to_string(),
             title,
             volume: None,
+            url_ja: Some(convert_google_translation_url(&abs_link[..])),
             url: abs_link,
             authors,
             abst: Some(abst.trim().to_string()),
@@ -286,6 +290,7 @@ impl Article {
             title,
             volume: Some(volume),
             url: abs_link,
+            url_ja: None,
             authors,
             abst: None,
             pdf_en_link: Some(pdf_en_link),
@@ -331,6 +336,7 @@ impl Article {
             title,
             volume: None,
             url: abs_link,
+            url_ja: None,
             authors,
             abst: Some(abst.trim().to_string()),
             pdf_en_link: None,
@@ -380,6 +386,7 @@ impl Article {
             id,
             title,
             volume: Some(volume),
+            url_ja: Some(convert_google_translation_url(&abs_link[..])),
             url: abs_link,
             authors,
             abst: Some(abst),
@@ -453,6 +460,8 @@ fn test_nips() {
     assert_eq!(article.abst, Some("Recent work has led to the ability to perform space efﬁcient, approximate counting  over large vocabularies in a streaming context. Motivated by the existence of data  structures of this type, we explore the computation of associativity scores, other-  wise known as pointwise mutual information (PMI), in a streaming context. We  give theoretical bounds showing the impracticality of perfect online PMI compu-  tation, and detail an algorithm with high expected accuracy. Experiments on news  articles show our approach gives high accuracy on real world data.".to_string()));
     assert_eq!(article.pdf_en_link, Some("http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information.pdf".to_string()));
 }
+
+fn convert_google_translation_url(url: &str) -> String { format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &url) }
 
 #[post("/", format = "application/json", data = "<message>")]
 fn index(message: Json<Message>) -> String {
