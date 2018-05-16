@@ -132,6 +132,7 @@ impl Attachment {
             "OpenReview" => ("#8B211A".to_string(), article.preserver, None),
             "ACL Anthology" => ("#FD0003".to_string(), article.preserver, Some("http://aclweb.org/anthology/images/acl-logo.gif".to_string())),
             "NIPS Proceedings" => ("#F1652D".to_string(), article.preserver, Some("https://www.google.com/s2/favicons?domain=papers.nips.cc".to_string())),
+            "PMLR" => ("#112567".to_string(), article.preserver, Some("http://proceedings.mlr.press/img/favicon.ico".to_string())),
             _ => ("#DDDDDD".to_string(), article.preserver, None),
         };
 
@@ -402,6 +403,61 @@ impl Article {
         println!("{:?}", &article);
         Some(article)
     }
+
+    fn from_pmlr(url: &str) -> Option<Article> {
+        // /vXX/fuga.html -> vXX/fuga
+        let mut url = url.to_string();
+        if url.ends_with(".pdf") {
+            let new_len = url.len() - 4;
+            url.truncate(new_len);
+        } else if url.ends_with(".html") {
+            let new_len = url.len() - 5;
+            url.truncate(new_len);
+        }
+        let paths: Vec<&str> = url.rsplitn(3, '/').collect();
+        let id = format!("{}/{}", paths[1], paths[0]);
+
+        let abs_link = format!("http://proceedings.mlr.press/{}", &id);
+        let pdf_en_link = format!("{}.pdf", &abs_link);
+        let pdf_ja_link = convert_google_translation_url(&pdf_en_link);
+        let html_en_link = None;
+        let html_ja_link = None;
+        let bib_link = None;
+
+        let body = reqwest::get(&abs_link).unwrap().text().unwrap();
+        let document = Html::parse_document(&body);
+
+        let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let volume = document.select(&Selector::parse(r#"meta[name="citation_conference_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let authors: Vec<_> = document.select(&Selector::parse(r#"meta[name="citation_author"]"#).unwrap()).map(|author| author.value().attr("content").unwrap().to_string()).collect();
+
+        let abst: String = document.select(&Selector::parse(".abstract").unwrap()).next().unwrap().text().collect::<String>().trim().to_string();
+
+        let citation_date_str = document.select(&Selector::parse(r#"meta[name="citation_publication_date"]"#).unwrap()).next().unwrap().value().attr("content").unwrap();
+        let date = match citation_date_str.split("/").map(|s| s.to_string()).collect::<Vec<String>>().as_slice() {
+            [y, m, d] => Utc.ymd(y.parse().unwrap(), m.parse().unwrap(), d.parse().unwrap()).and_hms(0, 0, 0),
+            _ => Utc::now(),
+        };
+
+        let article = Article {
+            preserver: "PMLR".to_string(),
+            id,
+            title,
+            volume: Some(volume),
+            url_ja: Some(convert_google_translation_url(&abs_link[..])),
+            url: abs_link,
+            authors,
+            abst: Some(abst),
+            pdf_en_link: Some(pdf_en_link),
+            pdf_ja_link: Some(pdf_ja_link),
+            html_en_link,
+            html_ja_link,
+            bib_link,
+            date,
+        };
+        println!("{:?}", &article);
+        Some(article)
+    }
 }
 
 #[test]
@@ -463,6 +519,25 @@ fn test_nips() {
     assert_eq!(article.pdf_en_link, Some("http://papers.nips.cc/paper/3730-streaming-pointwise-mutual-information.pdf".to_string()));
 }
 
+#[test]
+fn test_pmlr() {
+    let article = Article::from_pmlr("http://proceedings.mlr.press/v48/shaha16.html").unwrap();
+    assert_eq!(article.id, "v48/shaha16".to_string());
+    assert_eq!(article.title, "No Oops, You Won’t Do It Again: Mechanisms for Self-correction in Crowdsourcing".to_string());
+    assert_eq!(article.url, "http://proceedings.mlr.press/v48/shaha16".to_string());
+    assert_eq!(article.authors, vec!["Nihar Shah".to_string(), "Dengyong Zhou".to_string()]);
+    assert_eq!(article.abst, Some(r#"Crowdsourcing is a very popular means of obtaining the large amounts of labeled data that modern machine learning methods require. Although cheap and fast to obtain, crowdsourced labels suffer from significant amounts of error, thereby degrading the performance of downstream machine learning tasks. With the goal of improving the quality of the labeled data, we seek to mitigate the many errors that occur due to silly mistakes or inadvertent errors by crowdsourcing workers. We propose a two-stage setting for crowdsourcing where the worker first answers the questions, and is then allowed to change her answers after looking at a (noisy) reference answer. We mathematically formulate this process and develop mechanisms to incentivize workers to act appropriately. Our mathematical guarantees show that our mechanism incentivizes the workers to answer honestly in both stages, and refrain from answering randomly in the first stage or simply copying in the second. Numerical experiments reveal a significant boost in performance that such "self-correction" can provide when using crowdsourcing to train machine learning algorithms."#.to_string()));
+    assert_eq!(article.pdf_en_link, Some("http://proceedings.mlr.press/v48/shaha16.pdf".to_string()));
+
+    let article = Article::from_pmlr("http://proceedings.mlr.press/v48/shaha16.pdf").unwrap();
+    assert_eq!(article.id, "v48/shaha16".to_string());
+    assert_eq!(article.title, "No Oops, You Won’t Do It Again: Mechanisms for Self-correction in Crowdsourcing".to_string());
+    assert_eq!(article.url, "http://proceedings.mlr.press/v48/shaha16".to_string());
+    assert_eq!(article.authors, vec!["Nihar Shah".to_string(), "Dengyong Zhou".to_string()]);
+    assert_eq!(article.abst, Some(r#"Crowdsourcing is a very popular means of obtaining the large amounts of labeled data that modern machine learning methods require. Although cheap and fast to obtain, crowdsourced labels suffer from significant amounts of error, thereby degrading the performance of downstream machine learning tasks. With the goal of improving the quality of the labeled data, we seek to mitigate the many errors that occur due to silly mistakes or inadvertent errors by crowdsourcing workers. We propose a two-stage setting for crowdsourcing where the worker first answers the questions, and is then allowed to change her answers after looking at a (noisy) reference answer. We mathematically formulate this process and develop mechanisms to incentivize workers to act appropriately. Our mathematical guarantees show that our mechanism incentivizes the workers to answer honestly in both stages, and refrain from answering randomly in the first stage or simply copying in the second. Numerical experiments reveal a significant boost in performance that such "self-correction" can provide when using crowdsourcing to train machine learning algorithms."#.to_string()));
+    assert_eq!(article.pdf_en_link, Some("http://proceedings.mlr.press/v48/shaha16.pdf".to_string()));
+}
+
 fn convert_google_translation_url(url: &str) -> String { format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &url) }
 
 #[post("/", format = "application/json", data = "<message>")]
@@ -483,7 +558,7 @@ fn index(message: Json<Message>) -> String {
                 "aclweb.org" | "aclanthology.coli.uni-saarland.de" | "aclanthology.info" => Article::from_aclweb(&link.url),
                 "dl.acm.org" | "delivery.acm.org" => Article::from_acm(&link.url),
                 "papers.nips.cc" => Article::from_nips(&link.url),
-                //"proceedings.mlr.press" => Article::from_pmlr(&link.url),
+                "proceedings.mlr.press" => Article::from_pmlr(&link.url),
                 //"ieeexplore.ieee.org" => Article::from_ieee(&link.url),
                 _ => None,
             };
