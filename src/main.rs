@@ -131,6 +131,7 @@ impl Attachment {
             "arXiv" => ("#B22121".to_string(), article.preserver, Some("http://i.imgur.com/8NYocT8.gif".to_string())),
             "OpenReview" => ("#8B211A".to_string(), article.preserver, None),
             "ACL Anthology" => ("#FD0003".to_string(), article.preserver, Some("http://aclweb.org/anthology/images/acl-logo.gif".to_string())),
+            "ACM" => ("#638F36".to_string(), article.preserver, Some("https://www.google.com/s2/favicons?domain=dl.acm.org".to_string())),
             "NIPS Proceedings" => ("#F1652D".to_string(), article.preserver, Some("https://www.google.com/s2/favicons?domain=papers.nips.cc".to_string())),
             "PMLR" => ("#112567".to_string(), article.preserver, Some("http://proceedings.mlr.press/img/favicon.ico".to_string())),
             _ => ("#DDDDDD".to_string(), article.preserver, None),
@@ -314,18 +315,16 @@ impl Article {
         let id = hash_query.get("id").unwrap();
 
         let abs_link = format!("https://dl.acm.org/citation.cfm?id={}", id);
-        // let pdf_en_link = format!("https://openreview.net/pdf?id={}", id);
-        // let pdf_ja_link = format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &pdf_en_link);
 
         let body = reqwest::get(&abs_link).unwrap().text().unwrap();
         let document = Html::parse_document(&body);
 
-        let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
-        let authors_s = document.select(&Selector::parse(r#"meta[name="citation_authors"]"#).unwrap()).next().unwrap().text().collect::<String>().replace("\n", " ").replacen("Authors: ", "", 1);
-        let authors: Vec<String> = authors_s.split("; ").map(|author| author.trim().to_string()).collect();
+        let pdf_en_link = document.select(&Selector::parse(r#"meta[name="citation_pdf_url"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let pdf_ja_link = convert_google_translation_url(&pdf_en_link);
 
-        println!("{}", body);
-        let abst: String = document.select(&Selector::parse(".tabbody").unwrap()).next().unwrap().text().collect();
+        let title = document.select(&Selector::parse(r#"meta[name="citation_title"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let authors_s = document.select(&Selector::parse(r#"meta[name="citation_authors"]"#).unwrap()).next().unwrap().value().attr("content").unwrap().to_string();
+        let authors: Vec<String> = authors_s.split("; ").map(|author| author.trim().to_string()).collect();
 
         let citation_date_str = document.select(&Selector::parse(r#"meta[name="citation_date"]"#).unwrap()).next().unwrap().value().attr("content").unwrap();
         let date = match citation_date_str.split("/").map(|s| s.to_string()).collect::<Vec<String>>().as_slice() {
@@ -341,9 +340,9 @@ impl Article {
             url: abs_link,
             url_ja: None,
             authors,
-            abst: Some(abst.trim().to_string()),
-            pdf_en_link: None,
-            pdf_ja_link: None,
+            abst: None,
+            pdf_en_link: Some(pdf_en_link),
+            pdf_ja_link: Some(pdf_ja_link),
             html_en_link: None,
             html_ja_link: None,
             bib_link: None,
@@ -482,15 +481,15 @@ fn test_openreview() {
     assert_eq!(article.pdf_en_link, Some("https://openreview.net/pdf?id=Hy7fDog0b".to_string()));
 }
 
-// #[test]
-// fn test_acm() {
-// let article = Article::from_acm("https://dl.acm.org/citation.cfm?id=1073465").unwrap();
-// assert_eq!(article.id, "1073465".to_string());
-// assert_eq!(article.title, "Automatic evaluation of summaries using N-gram co-occurrence statistics".to_string());
-// assert_eq!(article.authors, vec!["Lin, Chin-Yew".to_string(), "Hovy, Eduard".to_string()]);
-// assert_eq!(article.abst, Some("Following the recent adoption by the machine translation community of automatic evaluation using the BLEU/NIST scoring process, we conduct an in-depth study of a similar idea for evaluating summaries. The results show that automatic evaluation using unigram co-occurrences between summary pairs correlates surprising well with human evaluations, based on various statistical metrics; while direct application of the BLEU evaluation procedure does not always give good results.".to_string()));
-// assert_eq!(article.pdf_en_link, Some("https://dl.acm.org/ft_gateway.cfm?id=1073465&ftid=959472&dwn=1&CFID=34742311&CFTOKEN=9402041771befa11-AE677DF5-0846-7D2B-8DE38EC1E0868C0D".to_string()));
-// }
+#[test]
+fn test_acm() {
+    let article = Article::from_acm("https://dl.acm.org/citation.cfm?id=1073465").unwrap();
+    assert_eq!(article.id, "1073465".to_string());
+    assert_eq!(article.title, "Automatic evaluation of summaries using N-gram co-occurrence statistics".to_string());
+    assert_eq!(article.authors, vec!["Lin, Chin-Yew".to_string(), "Hovy, Eduard".to_string()]);
+    assert_eq!(article.abst, None);
+    assert_eq!(article.pdf_en_link, Some("http://dl.acm.org/ft_gateway.cfm?id=1073465&type=pdf".to_string()));
+}
 
 #[test]
 fn test_nips() {
