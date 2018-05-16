@@ -4,6 +4,8 @@
 //extern crate regex;
 extern crate chrono;
 extern crate hyper;
+#[macro_use]
+extern crate lazy_static;
 extern crate reqwest;
 extern crate rocket;
 extern crate rocket_contrib;
@@ -47,6 +49,7 @@ struct Event {
     // user: String,
     message_ts: String,
     links: Vec<Link>,
+    token: String,
 }
 
 #[derive(Deserialize)]
@@ -489,7 +492,7 @@ fn index(message: Json<Message>) -> String {
                 None => None,
             };
             match attachment {
-                Some(attachment) => send_unfurl_request(&event.channel, &event.message_ts, &link.url, attachment),
+                Some(attachment) => send_unfurl_request(&event.channel, &event.message_ts, &link.url, &event.token, attachment),
                 None => (),
             };
         }
@@ -498,7 +501,7 @@ fn index(message: Json<Message>) -> String {
     String::new()
 }
 
-fn send_unfurl_request(channel: &str, ts: &str, url: &str, attachment: Attachment) {
+fn send_unfurl_request(channel: &str, ts: &str, url: &str, verification_token: &str, attachment: Attachment) {
     let unfurls: HashMap<String, Attachment> = vec![
         (url.to_string(), attachment),
     ].into_iter().collect();
@@ -507,12 +510,21 @@ fn send_unfurl_request(channel: &str, ts: &str, url: &str, attachment: Attachmen
     let client = reqwest::Client::new();
     let mut res = client.post("https://slack.com/api/chat.unfurl")
         .header(Authorization(Bearer {
-            token: env::var("SLACK_ACCESS_TOKEN").unwrap()
+            token: TOKEN_TO_OAUTH.get(verification_token).unwrap().to_string()
         }))
         .json(&ur)
         .send().ok().unwrap();
     let content = res.text().unwrap();
     println!("{}", content);
+}
+
+lazy_static! {
+    static ref TOKEN_TO_OAUTH: HashMap<String, String> = {
+        let mut m = HashMap::new();
+        m.insert(env::var("TOKEN1").unwrap(), env::var("OAUTH1").unwrap());
+        m.insert(env::var("TOKEN2").unwrap(), env::var("OAUTH2").unwrap());
+        m
+    };
 }
 
 fn main() {
