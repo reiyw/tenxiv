@@ -31,7 +31,7 @@ use url::Url;
 struct Message {
     // #[serde(rename = "type")]
     // typ: String,
-    // token: String,
+    token: String,
     challenge: Option<String>,
     // team_id: Option<String>,
     // api_app_id: Option<String>,
@@ -49,7 +49,6 @@ struct Event {
     // user: String,
     message_ts: String,
     links: Vec<Link>,
-    token: String,
 }
 
 #[derive(Deserialize)]
@@ -473,6 +472,7 @@ fn index(message: Json<Message>) -> String {
         None => ()
     }
 
+    let token = message.0.token.to_string();
     let event: Event = message.0.event.unwrap();
 
     thread::spawn(move || {
@@ -492,7 +492,7 @@ fn index(message: Json<Message>) -> String {
                 None => None,
             };
             match attachment {
-                Some(attachment) => send_unfurl_request(&event.channel, &event.message_ts, &link.url, &event.token, attachment),
+                Some(attachment) => send_unfurl_request(&event.channel, &event.message_ts, &link.url, &token, attachment),
                 None => (),
             };
         }
