@@ -539,6 +539,11 @@ fn test_pmlr() {
 
 fn convert_google_translation_url(url: &str) -> String { format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &url) }
 
+#[get("/")]
+fn hello() -> String {
+    "hello".to_string()
+}
+
 #[post("/", format = "application/json", data = "<message>")]
 fn index(message: Json<Message>) -> String {
     match message.0.challenge {
@@ -602,5 +607,5 @@ lazy_static! {
 }
 
 fn main() {
-    rocket::ignite().mount("/", routes![index]).launch();
+    rocket::ignite().mount("/", routes![index, hello]).launch();
 }
