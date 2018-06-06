@@ -617,7 +617,8 @@ fn convert_google_translation_url(url: &str) -> String { format!("https://transl
 
 #[derive(FromForm)]
 struct Auth {
-    code: String
+    code: String,
+    state: String,
 }
 
 #[derive(Deserialize)]
