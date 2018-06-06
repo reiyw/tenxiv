@@ -21,7 +21,6 @@ use chrono::prelude::*;
 use hyper::header::{Authorization, Bearer};
 use quick_xml::events::Event as XmlEvent;
 use quick_xml::reader::Reader as XmlReader;
-use rocket::response::Redirect;
 //use regex::Regex;
 use rocket_contrib::Json;
 use scraper::{Html, Selector};
@@ -618,13 +617,15 @@ fn convert_google_translation_url(url: &str) -> String { format!("https://transl
 #[derive(FromForm)]
 struct Auth {
     code: String,
-    state: String,
+    // state: String,
 }
 
 #[derive(Deserialize)]
 struct VerificationCode {
     access_token: String,
-    scope: String,
+    // scope: String,
+    // team_name: String,
+    team_id: String,
 }
 
 #[get("/authorize?<auth>")]
@@ -632,6 +633,7 @@ fn authorize(auth: Auth) -> String {
     let url = format!("https://slack.com/api/oauth.access?code={}&client_id={}&client_secret={}", &auth.code, env::var("CLIENT_ID1").unwrap(), env::var("CLIENT_SECRET1").unwrap());
     eprintln!("authorization url: {}", &url);
     let json: VerificationCode = reqwest::get(&url).unwrap().json().unwrap();
+    env::set_var(format!("OAUTH1_{}", &json.team_id), &json.access_token);
     json.access_token
 }
 
@@ -703,12 +705,12 @@ fn send_unfurl_request(channel: &str, ts: &str, url: &str, verification_token: &
 }
 
 lazy_static! {
-static ref TOKEN_TO_OAUTH: HashMap < String, String > = {
-let mut m = HashMap::new();
-m.insert(env::var("TOKEN1").unwrap(), env::var("OAUTH1").unwrap());
-m.insert(env::var("TOKEN2").unwrap(), env::var("OAUTH2").unwrap());
-m
-};
+    static ref TOKEN_TO_OAUTH: HashMap<String, String> = {
+        let mut m = HashMap::new();
+        m.insert(env::var("TOKEN1").unwrap(), env::var("OAUTH1").unwrap());
+        m.insert(env::var("TOKEN2").unwrap(), env::var("OAUTH2").unwrap());
+        m
+    };
 }
 
 fn main() {
