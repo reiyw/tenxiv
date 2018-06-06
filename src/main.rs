@@ -617,7 +617,7 @@ fn convert_google_translation_url(url: &str) -> String { format!("https://transl
 #[derive(FromForm)]
 struct Auth {
     code: String,
-    // state: String,
+    state: String,
 }
 
 #[derive(Deserialize)]
@@ -631,6 +631,8 @@ struct VerificationCode {
 #[get("/authorize?<auth>")]
 fn authorize(auth: Auth) -> String {
     let url = format!("https://slack.com/api/oauth.access?code={}&client_id={}&client_secret={}", &auth.code, env::var("CLIENT_ID1").unwrap(), env::var("CLIENT_SECRET1").unwrap());
+    eprintln!("code: {}", &auth.code);
+    eprintln!("state: {}", &auth.state);
     eprintln!("authorization url: {}", &url);
     let json: VerificationCode = reqwest::get(&url).unwrap().json().unwrap();
     env::set_var(format!("OAUTH1_{}", &json.team_id), &json.access_token);
