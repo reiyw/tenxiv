@@ -6,6 +6,7 @@ extern crate chrono;
 extern crate hyper;
 #[macro_use]
 extern crate lazy_static;
+extern crate quick_xml;
 extern crate reqwest;
 extern crate rocket;
 extern crate rocket_contrib;
@@ -18,6 +19,8 @@ extern crate url;
 
 use chrono::prelude::*;
 use hyper::header::{Authorization, Bearer};
+use quick_xml::events::Event as XmlEvent;
+use quick_xml::reader::Reader as XmlReader;
 //use regex::Regex;
 use rocket_contrib::Json;
 use scraper::{Html, Selector};
@@ -78,7 +81,7 @@ struct Attachment {
 }
 
 impl Attachment {
-    fn new(article: Article) -> Attachment {
+    fn new(article: Article) -> Self {
         let text = [
             ("abstract (ja)", article.url_ja),
             ("pdf", article.pdf_en_link),
@@ -160,7 +163,7 @@ struct AttachmentField {
     short: bool,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 struct Article {
     pub preserver: String,
     pub id: String,
@@ -179,7 +182,7 @@ struct Article {
 }
 
 impl Article {
-    fn from_arxiv(url: &str) -> Option<Article> {
+    fn from_arxiv(url: &str) -> Option<Self> {
         let abs_link = url.replacen("/pdf/", "/abs/", 1);
         let pdf_en_link = abs_link.replacen("/abs/", "/pdf/", 1);
         let pdf_ja_link = format!("https://translate.google.co.jp/translate?sl=en&tl=ja&js=y&prev=_t&hl=ja&ie=UTF-8&u={}&edit-text=&act=url", &pdf_en_link);
@@ -224,7 +227,7 @@ impl Article {
         Some(article)
     }
 
-    fn from_openreview(url: &str) -> Option<Article> {
+    fn from_openreview(url: &str) -> Option<Self> {
         let parsed_url = Url::parse(url).unwrap();
         let hash_query: HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
         let id = hash_query.get("id").unwrap();
@@ -267,7 +270,7 @@ impl Article {
         Some(article)
     }
 
-    fn from_aclweb(url: &str) -> Option<Article> {
+    fn from_aclweb(url: &str) -> Option<Self> {
         // /hoge/fuga.pdf -> fuga
         let id = url.rsplitn(2, '/').collect::<Vec<&str>>()[0].split('.').collect::<Vec<&str>>()[0];
         let id_upper = id.to_uppercase();
@@ -308,7 +311,7 @@ impl Article {
         Some(article)
     }
 
-    fn from_acm(url: &str) -> Option<Article> {
+    fn from_acm(url: &str) -> Option<Self> {
         // TODO: implement
         let parsed_url = Url::parse(url).unwrap();
         let hash_query: HashMap<_, _> = parsed_url.query_pairs().into_owned().collect();
@@ -352,7 +355,7 @@ impl Article {
         Some(article)
     }
 
-    fn from_nips(url: &str) -> Option<Article> {
+    fn from_nips(url: &str) -> Option<Self> {
         // /hoge/XXXX-fuga.pdf -> XXXX
         let paths: Vec<&str> = url.rsplitn(3, '/').collect();
         let mut id_title = if paths[0] == "bibtex" {
@@ -403,7 +406,7 @@ impl Article {
         Some(article)
     }
 
-    fn from_pmlr(url: &str) -> Option<Article> {
+    fn from_pmlr(url: &str) -> Option<Self> {
         // /vXX/fuga.html -> vXX/fuga
         let mut url = url.to_string();
         if url.ends_with(".pdf") {
@@ -456,6 +459,78 @@ impl Article {
         };
         println!("{:?}", &article);
         Some(article)
+    }
+
+    fn to_arxiv(&self) -> Option<Self> {
+        // タイトルと著者が完全一致なら同じ論文とみなす
+        // arxiv 版の方がリッチな情報を提供できるので，できる限り変換する
+        let url = format!("http://export.arxiv.org/api/query?search_query=ti:{}&max_results=1", self.title);
+        let body = reqwest::get(&url).unwrap().text().unwrap();
+
+        let mut reader = XmlReader::from_str(&body);
+        reader.trim_text(true);
+
+        let mut buf = Vec::new();
+        let mut title = String::new();
+        let mut authors: Vec<String> = Vec::new();
+        let mut in_title = false;
+        let mut in_author = false;
+        let mut arxiv_link = String::new();
+
+        loop {
+            match reader.read_event(&mut buf) {
+                Ok(XmlEvent::Empty(ref e)) => {
+                    match e.name() {
+                        b"link" => {
+                            let attr = e.attributes().map(|a| a.unwrap()).find(|a| a.key == b"href").unwrap();
+                            arxiv_link = String::from_utf8(attr.unescaped_value().unwrap().to_vec()).unwrap();
+                        }
+                        _ => (),
+                    }
+                }
+                Ok(XmlEvent::Start(ref e)) => {
+                    match e.name() {
+                        b"title" => in_title = true,
+                        b"author" => in_author = true,
+                        _ => (),
+                    }
+                }
+                Ok(XmlEvent::End(ref e)) => {
+                    match e.name() {
+                        b"title" => in_title = false,
+                        b"author" => in_author = false,
+                        _ => (),
+                    }
+                }
+                Ok(XmlEvent::Text(ref e)) if in_title => title = e.unescape_and_decode(&reader).unwrap(),
+                Ok(XmlEvent::Text(ref e)) if in_author => authors.push(e.unescape_and_decode(&reader).unwrap()),
+                Ok(XmlEvent::Eof) => break,
+                Err(e) => panic!("Error at position {}: {:?}", reader.buffer_position(), e),
+                _ => (),
+            }
+        }
+
+        if title == self.title && authors == self.authors {
+            println!("{}", &title);
+            println!("same article on arxiv: {}", &arxiv_link);
+            let arxiv_article = Article::from_arxiv(&arxiv_link).unwrap();
+            let mut article: Self = self.clone();
+            if article.abst.is_none() {
+                article.abst = arxiv_article.abst;
+            }
+            if article.url_ja.is_none() {
+                article.url_ja = arxiv_article.url_ja;
+            }
+            if article.html_en_link.is_none() {
+                article.html_en_link = arxiv_article.html_en_link;
+            }
+            if article.html_ja_link.is_none() {
+                article.html_ja_link = arxiv_article.html_ja_link;
+            }
+            Some(article)
+        } else {
+            None
+        }
     }
 }
 
@@ -567,7 +642,16 @@ fn index(message: Json<Message>) -> String {
                 _ => None,
             };
             let attachment = match article {
-                Some(article) => Some(Attachment::new(article)),
+                Some(article) => {
+                    if article.preserver != "arxiv".to_string() {
+                        match article.to_arxiv() {
+                            Some(new_article) => Some(Attachment::new(new_article)),
+                            None => Some(Attachment::new(article)),
+                        }
+                    } else {
+                        Some(Attachment::new(article))
+                    }
+                }
                 None => None,
             };
             match attachment {
