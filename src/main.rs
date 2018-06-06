@@ -36,7 +36,7 @@ struct Message {
     // typ: String,
     token: String,
     challenge: Option<String>,
-    // team_id: Option<String>,
+    team_id: Option<String>,
     // api_app_id: Option<String>,
     event: Option<Event>,
     // authed_users: Option<Vec<String>>,
@@ -651,7 +651,16 @@ fn index(message: Json<Message>) -> String {
         None => ()
     }
 
-    let token = message.0.token.to_string();
+    let oauth = match env::var(format!("OAUTH1_{}", &message.0.team_id.unwrap())) {
+        Ok(oauth) => {
+            eprintln!("oauth found");
+            oauth
+        }
+        Err(_) => {
+            eprintln!("oauth not found");
+            format!("{}", TOKEN_TO_OAUTH.get(&message.0.token).unwrap())
+        }
+    };
     let event: Event = message.0.event.unwrap();
 
     thread::spawn(move || {
@@ -680,7 +689,7 @@ fn index(message: Json<Message>) -> String {
                 None => None,
             };
             match attachment {
-                Some(attachment) => send_unfurl_request(&event.channel, &event.message_ts, &link.url, &token, attachment),
+                Some(attachment) => send_unfurl_request(&event.channel, &event.message_ts, &link.url, &oauth, attachment),
                 None => (),
             };
         }
@@ -689,7 +698,7 @@ fn index(message: Json<Message>) -> String {
     String::new()
 }
 
-fn send_unfurl_request(channel: &str, ts: &str, url: &str, verification_token: &str, attachment: Attachment) {
+fn send_unfurl_request(channel: &str, ts: &str, url: &str, oauth: &str, attachment: Attachment) {
     let unfurls: HashMap<String, Attachment> = vec![
         (url.to_string(), attachment),
     ].into_iter().collect();
@@ -697,9 +706,7 @@ fn send_unfurl_request(channel: &str, ts: &str, url: &str, verification_token: &
 
     let client = reqwest::Client::new();
     let mut res = client.post("https://slack.com/api/chat.unfurl")
-        .header(Authorization(Bearer {
-            token: TOKEN_TO_OAUTH.get(verification_token).unwrap().to_string()
-        }))
+        .header(Authorization(Bearer { token: oauth.to_string() }))
         .json(&ur)
         .send().ok().unwrap();
     let content = res.text().unwrap();
