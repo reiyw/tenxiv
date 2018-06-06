@@ -628,7 +628,7 @@ struct VerificationCode {
 
 #[get("/authorize?<auth>")]
 fn authorize(auth: Auth) -> String {
-    let url = format!("https://slack.com/api/oauth.access?code={}&client_id={}&client_secret={}", &auth.code, env::var("CLIENT_ID").unwrap(), env::var("CLIENT_SECRET").unwrap());
+    let url = format!("https://slack.com/api/oauth.access?code={}&client_id={}&client_secret={}", &auth.code, env::var("CLIENT_ID1").unwrap(), env::var("CLIENT_SECRET1").unwrap());
     eprintln!("authorization url: {}", &url);
     let json: VerificationCode = reqwest::get(&url).unwrap().json().unwrap();
     json.access_token
