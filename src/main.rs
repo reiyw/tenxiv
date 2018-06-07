@@ -1,7 +1,6 @@
 #![feature(plugin, custom_derive)]
 #![plugin(rocket_codegen)]
 
-//extern crate regex;
 extern crate chrono;
 extern crate hyper;
 #[macro_use]
@@ -21,9 +20,9 @@ use chrono::prelude::*;
 use hyper::header::{Authorization, Bearer};
 use quick_xml::events::Event as XmlEvent;
 use quick_xml::reader::Reader as XmlReader;
-//use regex::Regex;
 use rocket_contrib::Json;
 use scraper::{Html, Selector};
+use serde_json::Value as JsonValue;
 use std::collections::HashMap;
 use std::env;
 use std::thread;
@@ -34,10 +33,10 @@ use url::Url;
 struct Message {
     // #[serde(rename = "type")]
     // typ: String,
-    token: String,
+    // token: String,
     challenge: Option<String>,
     team_id: Option<String>,
-    // api_app_id: Option<String>,
+    api_app_id: Option<String>,
     event: Option<Event>,
     // authed_users: Option<Vec<String>>,
     // event_id: Option<String>,
@@ -628,15 +627,44 @@ struct VerificationCode {
     team_id: String,
 }
 
-#[get("/authorize?<auth>")]
-fn authorize(auth: Auth) -> String {
+#[get("/authorize1?<auth>")]
+fn authorize1(auth: Auth) -> String {
     let url = format!("https://slack.com/api/oauth.access?code={}&client_id={}&client_secret={}", &auth.code, env::var("CLIENT_ID1").unwrap(), env::var("CLIENT_SECRET1").unwrap());
     eprintln!("code: {}", &auth.code);
     eprintln!("state: {}", &auth.state);
     eprintln!("authorization url: {}", &url);
     let json: VerificationCode = reqwest::get(&url).unwrap().json().unwrap();
-    env::set_var(format!("OAUTH1_{}", &json.team_id), &json.access_token);
-    json.access_token
+
+    let mut auth_info = HashMap::new();
+    auth_info.insert(format!("OAUTH1_{}", &json.team_id), format!("{}", &json.access_token));
+    let client = reqwest::Client::new();
+    let _res = client.put(&env::var("FIREBASE_ENDPOINT").unwrap())
+        .json(&auth_info)
+        .send().unwrap();
+
+    env::set_var(&format!("OAUTH1_{}", &json.team_id), json.access_token);
+
+    "installed successfully".to_string()
+}
+
+#[get("/authorize2?<auth>")]
+fn authorize2(auth: Auth) -> String {
+    let url = format!("https://slack.com/api/oauth.access?code={}&client_id={}&client_secret={}", &auth.code, env::var("CLIENT_ID1").unwrap(), env::var("CLIENT_SECRET1").unwrap());
+    eprintln!("code: {}", &auth.code);
+    eprintln!("state: {}", &auth.state);
+    eprintln!("authorization url: {}", &url);
+    let json: VerificationCode = reqwest::get(&url).unwrap().json().unwrap();
+
+    let mut auth_info = HashMap::new();
+    auth_info.insert(format!("OAUTH2_{}", &json.team_id), format!("{}", &json.access_token));
+    let client = reqwest::Client::new();
+    let _res = client.put(&env::var("FIREBASE_ENDPOINT").unwrap())
+        .json(&auth_info)
+        .send().unwrap();
+
+    env::set_var(&format!("OAUTH1_{}", &json.team_id), json.access_token);
+
+    "installed successfully".to_string()
 }
 
 #[get("/")]
@@ -651,16 +679,17 @@ fn index(message: Json<Message>) -> String {
         None => ()
     }
 
-    let oauth = match env::var(format!("OAUTH1_{}", &message.0.team_id.unwrap())) {
-        Ok(oauth) => {
-            eprintln!("oauth found");
-            oauth
-        }
+    let app_i = APP_ID_TO_I.get(&message.0.api_app_id.unwrap()).unwrap();
+    let key = format!("OAUTH{}_{}", &app_i, &message.0.team_id.unwrap());
+    eprintln!("key: {}", &key);
+    let oauth: String = match env::var(&key) {
+        Ok(oauth) => oauth,
         Err(_) => {
-            eprintln!("oauth not found");
-            format!("{}", TOKEN_TO_OAUTH.get(&message.0.token).unwrap())
-        }
+            let oauths: JsonValue = reqwest::get(&env::var("FIREBASE_ENDPOINT").unwrap()).unwrap().json().unwrap();
+            format!("{}", oauths[key])
+        },
     };
+
     let event: Event = message.0.event.unwrap();
 
     thread::spawn(move || {
@@ -714,14 +743,14 @@ fn send_unfurl_request(channel: &str, ts: &str, url: &str, oauth: &str, attachme
 }
 
 lazy_static! {
-    static ref TOKEN_TO_OAUTH: HashMap<String, String> = {
+    static ref APP_ID_TO_I: HashMap<String, i32> = {
         let mut m = HashMap::new();
-        m.insert(env::var("TOKEN1").unwrap(), env::var("OAUTH1").unwrap());
-        m.insert(env::var("TOKEN2").unwrap(), env::var("OAUTH2").unwrap());
+        m.insert(env::var("APP_ID_1").unwrap(), 1);
+        m.insert(env::var("APP_ID_2").unwrap(), 2);
         m
     };
 }
 
 fn main() {
-    rocket::ignite().mount("/", routes![index, hello, authorize]).launch();
+    rocket::ignite().mount("/", routes![index, hello, authorize1, authorize2]).launch();
 }
