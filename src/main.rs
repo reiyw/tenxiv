@@ -746,8 +746,8 @@ fn send_unfurl_request(channel: &str, ts: &str, url: &str, oauth: &str, attachme
 lazy_static! {
     static ref APP_ID_TO_I: HashMap<String, i32> = {
         let mut m = HashMap::new();
-        m.insert(env::var("APP_ID_1").unwrap(), 1);
-        m.insert(env::var("APP_ID_2").unwrap(), 2);
+        m.insert(env::var("APP_ID1").unwrap(), 1);
+        m.insert(env::var("APP_ID2").unwrap(), 2);
         m
     };
 }
