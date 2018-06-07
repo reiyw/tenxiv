@@ -690,6 +690,7 @@ fn index(message: Json<Message>) -> String {
             format!("{}", oauths[key])
         },
     };
+    eprintln!("oauth: {}", &oauth);
 
     let event: Event = message.0.event.unwrap();
 
