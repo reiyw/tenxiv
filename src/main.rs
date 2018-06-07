@@ -649,7 +649,7 @@ fn authorize1(auth: Auth) -> String {
 
 #[get("/authorize2?<auth>")]
 fn authorize2(auth: Auth) -> String {
-    let url = format!("https://slack.com/api/oauth.access?code={}&client_id={}&client_secret={}", &auth.code, env::var("CLIENT_ID1").unwrap(), env::var("CLIENT_SECRET1").unwrap());
+    let url = format!("https://slack.com/api/oauth.access?code={}&client_id={}&client_secret={}", &auth.code, env::var("CLIENT_ID2").unwrap(), env::var("CLIENT_SECRET2").unwrap());
     eprintln!("code: {}", &auth.code);
     eprintln!("state: {}", &auth.state);
     eprintln!("authorization url: {}", &url);
