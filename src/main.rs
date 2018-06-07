@@ -687,7 +687,7 @@ fn index(message: Json<Message>) -> String {
         Ok(oauth) => oauth,
         Err(_) => {
             let oauths: JsonValue = reqwest::get(&env::var("FIREBASE_ENDPOINT").unwrap()).unwrap().json().unwrap();
-            format!("{}", oauths[key])
+            oauths[key].to_string()
         },
     };
     eprintln!("oauth: {}", &oauth);
