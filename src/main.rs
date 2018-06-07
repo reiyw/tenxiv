@@ -638,7 +638,7 @@ fn authorize1(auth: Auth) -> String {
     let mut auth_info = HashMap::new();
     auth_info.insert(format!("OAUTH1_{}", &json.team_id), format!("{}", &json.access_token));
     let client = reqwest::Client::new();
-    let _res = client.put(&env::var("FIREBASE_ENDPOINT").unwrap())
+    let _res = client.patch(&env::var("FIREBASE_ENDPOINT").unwrap())
         .json(&auth_info)
         .send().unwrap();
 
@@ -658,7 +658,7 @@ fn authorize2(auth: Auth) -> String {
     let mut auth_info = HashMap::new();
     auth_info.insert(format!("OAUTH2_{}", &json.team_id), format!("{}", &json.access_token));
     let client = reqwest::Client::new();
-    let _res = client.put(&env::var("FIREBASE_ENDPOINT").unwrap())
+    let _res = client.patch(&env::var("FIREBASE_ENDPOINT").unwrap())
         .json(&auth_info)
         .send().unwrap();
 
