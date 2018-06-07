@@ -662,7 +662,7 @@ fn authorize2(auth: Auth) -> String {
         .json(&auth_info)
         .send().unwrap();
 
-    env::set_var(&format!("OAUTH1_{}", &json.team_id), json.access_token);
+    env::set_var(&format!("OAUTH2_{}", &json.team_id), json.access_token);
 
     "installed successfully".to_string()
 }
