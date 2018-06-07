@@ -29,7 +29,7 @@ use std::thread;
 use url::Url;
 
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Message {
     // #[serde(rename = "type")]
     // typ: String,
@@ -43,7 +43,7 @@ struct Message {
     // event_time: Option<u64>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Event {
     // #[serde(rename = "type")]
     // typ: String,
@@ -53,7 +53,7 @@ struct Event {
     links: Vec<Link>,
 }
 
-#[derive(Deserialize)]
+#[derive(Debug, Deserialize)]
 struct Link {
     domain: String,
     url: String,
@@ -679,6 +679,7 @@ fn index(message: Json<Message>) -> String {
         None => ()
     }
 
+    eprintln!("{:?}", &message.0);
     let app_i = APP_ID_TO_I.get(&message.0.api_app_id.unwrap()).unwrap();
     let key = format!("OAUTH{}_{}", &app_i, &message.0.team_id.unwrap());
     eprintln!("key: {}", &key);
